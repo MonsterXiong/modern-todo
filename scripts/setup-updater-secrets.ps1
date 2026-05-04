@@ -60,6 +60,26 @@ function Resolve-GitHubRepo {
   throw "Cannot parse GitHub repository from origin remote: $remote. Pass -Repo owner/name."
 }
 
+function Resolve-GhCommand {
+  $gh = Get-Command gh -ErrorAction SilentlyContinue
+  if ($gh) {
+    return $gh.Source
+  }
+
+  $candidates = @(
+    (Join-Path $env:ProgramFiles "GitHub CLI\gh.exe"),
+    (Join-Path $env:LOCALAPPDATA "Programs\GitHub CLI\gh.exe")
+  )
+
+  foreach ($candidate in $candidates) {
+    if ($candidate -and (Test-Path -LiteralPath $candidate)) {
+      return $candidate
+    }
+  }
+
+  return $null
+}
+
 $Repo = Resolve-GitHubRepo -ExplicitRepo $Repo
 $publicKeyPath = "$KeyPath.pub"
 
@@ -109,11 +129,12 @@ Write-Host "TAURI_SIGNING_PRIVATE_KEY_PASSWORD: use the full content of $Passwor
 Write-Host ""
 
 if ($ConfigureGitHub) {
-  if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+  $gh = Resolve-GhCommand
+  if (-not $gh) {
     throw "GitHub CLI (gh) is not installed. Install it, run 'gh auth login', then rerun this script with -ConfigureGitHub."
   }
 
-  & gh auth status
+  & $gh auth status
   if ($LASTEXITCODE -ne 0) {
     throw "GitHub CLI is not authenticated. Run 'gh auth login', then rerun this script with -ConfigureGitHub."
   }
@@ -130,13 +151,13 @@ if ($ConfigureGitHub) {
     Write-Utf8NoBom -Path $privateFile -Value $privateKey
     Write-Utf8NoBom -Path $passwordFile -Value $passwordValue
 
-    & gh secret set TAURI_UPDATER_PUBKEY --repo $Repo --body-file $pubFile
+    & $gh secret set TAURI_UPDATER_PUBKEY --repo $Repo --body-file $pubFile
     if ($LASTEXITCODE -ne 0) { throw "Failed to set TAURI_UPDATER_PUBKEY." }
 
-    & gh secret set TAURI_SIGNING_PRIVATE_KEY --repo $Repo --body-file $privateFile
+    & $gh secret set TAURI_SIGNING_PRIVATE_KEY --repo $Repo --body-file $privateFile
     if ($LASTEXITCODE -ne 0) { throw "Failed to set TAURI_SIGNING_PRIVATE_KEY." }
 
-    & gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD --repo $Repo --body-file $passwordFile
+    & $gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD --repo $Repo --body-file $passwordFile
     if ($LASTEXITCODE -ne 0) { throw "Failed to set TAURI_SIGNING_PRIVATE_KEY_PASSWORD." }
 
     Write-Host ""
