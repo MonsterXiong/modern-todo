@@ -1,6 +1,6 @@
 param(
   [ValidateSet("debug", "release")]
-  [string]$Profile = "release",
+  [string]$BuildProfile = "release",
   [switch]$SkipInstall,
   [switch]$CleanInstall
 )
@@ -54,22 +54,22 @@ if (!$SkipInstall) {
 Invoke-Checked npm test
 Invoke-Checked npm run build
 
-if ($Profile -eq "debug") {
-  Invoke-Checked npm run tauri -- build --debug
+if ($BuildProfile -eq "debug") {
+  Invoke-Checked npm run tauri "--" build "--debug"
   $bundleRoot = Join-Path $repoRoot "src-tauri\target\debug\bundle"
 } else {
-  Invoke-Checked npm run tauri -- build
+  Invoke-Checked npm run tauri "--" build
   $bundleRoot = Join-Path $repoRoot "src-tauri\target\release\bundle"
 }
 
 Write-Host ""
 Write-Host "Package complete." -ForegroundColor Green
 Write-Host "Bundles:"
-$artifacts = Get-ChildItem $bundleRoot -Recurse -File |
-  Where-Object { $_.Extension -in ".exe", ".msi" }
+$nsisRoot = Join-Path $bundleRoot "nsis"
+$artifacts = Get-ChildItem $nsisRoot -File -Filter "*.exe"
 
 $packageJson = Get-Content (Join-Path $repoRoot "package.json") -Raw | ConvertFrom-Json
-$releaseDir = Join-Path $repoRoot ("release\v" + $packageJson.version + "\" + $Profile)
+$releaseDir = Join-Path $repoRoot ("release\v" + $packageJson.version + "\" + $BuildProfile)
 New-Item -ItemType Directory -Force -Path $releaseDir | Out-Null
 
 $checksums = @()

@@ -39,9 +39,7 @@ npm run package:win:debug
 输出目录：
 
 - `src-tauri/target/release/bundle/nsis`
-- `src-tauri/target/release/bundle/msi`
 - `src-tauri/target/debug/bundle/nsis`
-- `src-tauri/target/debug/bundle/msi`
 
 ## 数据目录
 

@@ -13,7 +13,7 @@ powershell -ExecutionPolicy Bypass -File scripts/package.ps1
 Build debug packages:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/package.ps1 -Profile debug
+powershell -ExecutionPolicy Bypass -File scripts/package.ps1 -BuildProfile debug
 ```
 
 Use a lockfile-clean dependency reinstall only when no dev server or app process is holding files in `node_modules`:
@@ -25,9 +25,7 @@ powershell -ExecutionPolicy Bypass -File scripts/package.ps1 -CleanInstall
 Outputs:
 
 - `src-tauri/target/release/bundle/nsis/*.exe`
-- `src-tauri/target/release/bundle/msi/*.msi`
-- `src-tauri/target/debug/bundle/nsis/*.exe` when using `-Profile debug`
-- `src-tauri/target/debug/bundle/msi/*.msi` when using `-Profile debug`
+- `src-tauri/target/debug/bundle/nsis/*.exe` when using `-BuildProfile debug`
 - `release/v<version>/<profile>/` with copied installers and `SHA256SUMS.txt`
 
 The built installer includes the frontend bundle and Tauri runtime code. Users do not need Node, Rust, npm, Cargo, or SQLite installed.
@@ -77,7 +75,7 @@ The workflow:
 2. Installs dependencies.
 3. Runs tests.
 4. Injects updater config using `scripts/prepare-updater-config.cjs`.
-5. Builds the Windows app with Tauri.
+5. Builds the Windows app with Tauri as an NSIS `.exe` installer.
 6. Uploads installer assets and `latest.json` to the GitHub Release.
 
 ## Updater Signing Keys
