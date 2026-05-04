@@ -10,6 +10,10 @@ export type UpdateCheckResult =
   | {
       status: "offline";
       message: string;
+    }
+  | {
+      status: "unavailable";
+      message: string;
     };
 
 export interface UpdateChecker {
@@ -22,6 +26,10 @@ export interface AvailableUpdate {
   body?: string;
   downloadAndInstall: () => Promise<void>;
 }
+
+const offlineUpdateMessage = "无法连接更新服务，离线状态下会跳过更新检查。";
+const unavailableUpdateMessage =
+  "当前安装包未配置更新服务。请使用 GitHub Release 发布的安装包，或在本地构建时注入 updater 配置。";
 
 export async function checkForAppUpdate(checker: UpdateChecker): Promise<UpdateCheckResult> {
   try {
@@ -38,10 +46,43 @@ export async function checkForAppUpdate(checker: UpdateChecker): Promise<UpdateC
       notes: update.body,
       install: update.downloadAndInstall.bind(update)
     };
-  } catch {
+  } catch (error) {
+    if (isUpdaterUnavailableError(error)) {
+      return {
+        status: "unavailable",
+        message: unavailableUpdateMessage
+      };
+    }
+
     return {
       status: "offline",
-      message: "无法连接更新服务，离线状态下会跳过更新检查。"
+      message: offlineUpdateMessage
     };
   }
+}
+
+function isUpdaterUnavailableError(error: unknown): boolean {
+  const message = errorToMessage(error).toLowerCase();
+  const mentionsUpdater = message.includes("plugin:updater") || message.includes("updater");
+  const unavailableReason =
+    message.includes("not found") ||
+    message.includes("not registered") ||
+    message.includes("not initialized") ||
+    message.includes("not configured") ||
+    message.includes("unknown command") ||
+    message.includes("permission denied");
+
+  return mentionsUpdater && unavailableReason;
+}
+
+function errorToMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  return JSON.stringify(error);
 }

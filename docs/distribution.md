@@ -94,11 +94,4 @@ Add these GitHub Actions secrets:
 - `TAURI_SIGNING_PRIVATE_KEY`: full private key file content.
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: content of `$HOME\.modern-todo-updater.password.txt`.
 
-If GitHub CLI is installed and authenticated, the script can upload the secrets:
-
-```powershell
-gh auth login
-npm run updater:secrets:github
-```
-
 The app embeds only the public key. The private key must never be committed.

@@ -205,7 +205,7 @@ export default function App() {
 
     if (result.status === "up-to-date") {
       setStatusText("当前已是最新版本");
-    } else if (result.status === "offline") {
+    } else if (result.status === "offline" || result.status === "unavailable") {
       setStatusText(result.message);
     } else {
       setStatusText(`发现新版本 ${result.version}`);
@@ -437,6 +437,7 @@ function UpdatePanel({
         </button>
       )}
       {result?.status === "offline" && <p>{result.message}</p>}
+      {result?.status === "unavailable" && <p>{result.message}</p>}
       {result?.status === "up-to-date" && <p>当前已是最新版本</p>}
     </div>
   );

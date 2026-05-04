@@ -21,6 +21,19 @@ describe("updateService", () => {
     });
   });
 
+  it("reports updater plugin errors as unavailable instead of offline", async () => {
+    const result = await checkForAppUpdate({
+      check: async () => {
+        throw new Error("Command plugin:updater|check not found");
+      }
+    });
+
+    expect(result).toEqual({
+      status: "unavailable",
+      message: "当前安装包未配置更新服务。请使用 GitHub Release 发布的安装包，或在本地构建时注入 updater 配置。"
+    });
+  });
+
   it("returns available update metadata without installing immediately", async () => {
     let installed = false;
     const install = async () => undefined;
