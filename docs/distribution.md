@@ -85,15 +85,22 @@ The workflow:
 Generate a signing key once:
 
 ```powershell
-npm run tauri signer generate -- -w "$HOME\.modern-todo-updater.key"
+npm run updater:secrets
 ```
 
 Use a strong password and store both the key file and password in a password manager. Losing the private key means already-installed apps cannot trust future updates.
 
 Add these GitHub Actions secrets:
 
-- `TAURI_UPDATER_PUBKEY`: public key printed by the signer command.
+- `TAURI_UPDATER_PUBKEY`: content of `$HOME\.modern-todo-updater.key.pub`.
 - `TAURI_SIGNING_PRIVATE_KEY`: full private key file content.
-- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: private key password.
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: content of `$HOME\.modern-todo-updater.password.txt`.
+
+If GitHub CLI is installed and authenticated, the script can upload the secrets:
+
+```powershell
+gh auth login
+npm run updater:secrets:github
+```
 
 The app embeds only the public key. The private key must never be committed.

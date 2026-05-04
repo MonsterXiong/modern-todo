@@ -68,4 +68,17 @@ C:\Users\<username>\.modern-todo\todo.sqlite
 
 配置 GitHub Actions Secrets 后，推送 `v0.1.1` 这类 tag 会自动构建 Windows 安装包、生成 Tauri updater artifacts，并上传 `latest.json` 到 GitHub Release。
 
+生成 updater 签名密钥：
+
+```bash
+npm run updater:secrets
+```
+
+如果本机安装并登录了 GitHub CLI，可以自动写入仓库 Secrets：
+
+```bash
+gh auth login
+npm run updater:secrets:github
+```
+
 应用内的“检查更新”会在在线时读取 GitHub Release 的 `latest.json`；离线时会跳过更新检查。
