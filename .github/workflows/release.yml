@@ -75,5 +75,5 @@ jobs:
           prerelease: false
           tauriScript: npm run tauri
           args: --bundles nsis
-          uploadUpdaterJson: true
+          includeUpdaterJson: true
           updaterJsonPreferNsis: true

@@ -1,10 +1,14 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha384};
+use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{FromRow, SqlitePool, Transaction};
 use std::path::PathBuf;
 use tauri::{Manager, State};
 use uuid::Uuid;
+
+static MIGRATOR: Migrator = sqlx::migrate!("./migrations");
 
 struct AppState {
     pool: SqlitePool,
@@ -608,7 +612,8 @@ pub fn run() {
                     .connect_with(options)
                     .await?;
 
-                sqlx::migrate!("./migrations").run(&pool).await?;
+                repair_migration_line_ending_checksums(&pool, &MIGRATOR).await?;
+                MIGRATOR.run(&pool).await?;
                 app_handle.manage(AppState { pool });
                 Ok::<(), Box<dyn std::error::Error>>(())
             })?;
@@ -640,6 +645,60 @@ fn has_updater_config(config: &tauri::Config) -> bool {
         .is_some_and(|updater_config| !updater_config.is_null())
 }
 
+async fn repair_migration_line_ending_checksums(pool: &SqlitePool, migrator: &Migrator) -> Result<(), sqlx::Error> {
+    let has_migrations_table: Option<i64> =
+        sqlx::query_scalar("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_sqlx_migrations'")
+            .fetch_optional(pool)
+            .await?;
+
+    if has_migrations_table.is_none() {
+        return Ok(());
+    }
+
+    for migration in migrator.iter() {
+        let applied_checksum: Option<Vec<u8>> =
+            sqlx::query_scalar("SELECT checksum FROM _sqlx_migrations WHERE version = ? AND success = 1")
+                .bind(migration.version)
+                .fetch_optional(pool)
+                .await?;
+
+        let Some(applied_checksum) = applied_checksum else {
+            continue;
+        };
+
+        if applied_checksum == migration.checksum.as_ref() {
+            continue;
+        }
+
+        if line_ending_checksum_matches(&migration.sql, &applied_checksum) {
+            sqlx::query("UPDATE _sqlx_migrations SET checksum = ? WHERE version = ?")
+                .bind(migration.checksum.as_ref())
+                .bind(migration.version)
+                .execute(pool)
+                .await?;
+        }
+    }
+
+    Ok(())
+}
+
+fn line_ending_checksum_matches(sql: &str, checksum: &[u8]) -> bool {
+    line_ending_checksum_variants(sql)
+        .iter()
+        .any(|variant_checksum| variant_checksum.as_slice() == checksum)
+}
+
+fn line_ending_checksum_variants(sql: &str) -> [Vec<u8>; 2] {
+    let lf_sql = sql.replace("\r\n", "\n");
+    let crlf_sql = lf_sql.replace('\n', "\r\n");
+
+    [sha384(&lf_sql), sha384(&crlf_sql)]
+}
+
+fn sha384(value: &str) -> Vec<u8> {
+    Sha384::digest(value.as_bytes()).to_vec()
+}
+
 fn modern_todo_data_dir<R: tauri::Runtime>(app_handle: &tauri::AppHandle<R>) -> tauri::Result<PathBuf> {
     Ok(app_handle.path().home_dir()?.join(".modern-todo"))
 }
@@ -662,7 +721,7 @@ fn migrate_legacy_database<R: tauri::Runtime>(
 
 #[cfg(test)]
 mod tests {
-    use crate::has_updater_config;
+    use crate::{has_updater_config, line_ending_checksum_matches};
     use serde_json::json;
     use tauri::utils::config::{Config, PluginConfig};
 
@@ -694,5 +753,24 @@ mod tests {
         };
 
         assert!(has_updater_config(&config));
+    }
+
+    #[test]
+    fn line_ending_checksum_match_accepts_crlf_checksum_for_lf_sql() {
+        let lf_sql = "CREATE TABLE items (id INTEGER PRIMARY KEY);\n";
+        let crlf_checksum =
+            hex_bytes("cace7e15a9dfaeecece4bea29803cc1bc8f3fbf7cf87a95f6ab97f0937a8706fbcda77c08f08d01e35ef6babcf331f53");
+
+        assert!(line_ending_checksum_matches(lf_sql, &crlf_checksum));
+    }
+
+    fn hex_bytes(hex: &str) -> Vec<u8> {
+        hex.as_bytes()
+            .chunks_exact(2)
+            .map(|pair| {
+                let value = std::str::from_utf8(pair).expect("hex pair");
+                u8::from_str_radix(value, 16).expect("valid hex")
+            })
+            .collect()
     }
 }
