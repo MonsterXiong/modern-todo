@@ -587,8 +587,10 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             #[cfg(desktop)]
-            app.handle()
-                .plugin(tauri_plugin_updater::Builder::new().build())?;
+            if has_updater_config(app.config()) {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
 
             let app_handle = app.handle().clone();
 
@@ -630,6 +632,14 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
+fn has_updater_config(config: &tauri::Config) -> bool {
+    config
+        .plugins
+        .0
+        .get("updater")
+        .is_some_and(|updater_config| !updater_config.is_null())
+}
+
 fn modern_todo_data_dir<R: tauri::Runtime>(app_handle: &tauri::AppHandle<R>) -> tauri::Result<PathBuf> {
     Ok(app_handle.path().home_dir()?.join(".modern-todo"))
 }
@@ -648,4 +658,41 @@ fn migrate_legacy_database<R: tauri::Runtime>(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::has_updater_config;
+    use serde_json::json;
+    use tauri::utils::config::{Config, PluginConfig};
+
+    #[test]
+    fn updater_is_disabled_when_config_is_missing() {
+        let config = Config {
+            plugins: PluginConfig::default(),
+            ..Default::default()
+        };
+
+        assert!(!has_updater_config(&config));
+    }
+
+    #[test]
+    fn updater_is_disabled_when_config_is_null() {
+        let config = Config {
+            plugins: PluginConfig([("updater".to_string(), json!(null))].into()),
+            ..Default::default()
+        };
+
+        assert!(!has_updater_config(&config));
+    }
+
+    #[test]
+    fn updater_is_enabled_when_config_is_an_object() {
+        let config = Config {
+            plugins: PluginConfig([("updater".to_string(), json!({ "pubkey": "key", "endpoints": [] }))].into()),
+            ..Default::default()
+        };
+
+        assert!(has_updater_config(&config));
+    }
 }
